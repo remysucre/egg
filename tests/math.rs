@@ -135,7 +135,7 @@ pub fn rules() -> Vec<Rewrite> { vec![
 
     rw!("sub-canon"; "(- ?a ?b)" => "(+ ?a (* -1 ?b))"),
     rw!("div-canon"; "(/ ?a ?b)" => "(* ?a (pow ?b -1))"),
-    // rw!("canon-sub"; "(+ ?a (* -1 ?b))"   => "(- ?a ?b)"),
+    rw!("canon-sub"; "(+ ?a (* -1 ?b))"   => "(- ?a ?b)"),
     // rw!("canon-div"; "(* ?a (pow ?b -1))" => "(/ ?a ?b)" if is_not_zero("?b")),
 
     rw!("zero-add"; "(+ ?a 0)" => "?a"),
@@ -241,3 +241,39 @@ egg::test_fn! {
     =>
     "(* x (- (* 3 x) 14))"
 }
+
+#[test]
+fn ac_match() {
+    let _ = env_logger::builder().is_test(true).try_init();
+    let start = &"(* (+ a (+ b c)) (- (+ (* a a) (+ (* b b) (* c c))) (+ (* a b) (+ (* b c) (* a c)))))".parse().unwrap();
+    let end = &"(- (+ (pow a 3) (+ (pow b 3) (pow c 3))) (* 3 (* a (* b c))))".parse().unwrap();
+
+    let rules = rules();
+    let mut runner = Runner::new()
+        .with_iter_limit(1000)
+        .with_node_limit(500_000)
+        .with_time_limit(std::time::Duration::from_secs(60));
+    let start_c = runner.egraph.add_expr(start);
+    let end_c = runner.egraph.add_expr(end);
+    println!("{:?}", (start_c, end_c));
+    let res = runner.run(&rules);
+    let sc = res.egraph.find(start_c);
+    let ec = res.egraph.find(end_c);
+    println!("{:?}", (sc, ec));
+    println!(
+        "Stopped after {} iterations, reason: {:?}",
+        res.iterations.len(),
+        res.stop_reason
+    );
+}
+
+// egg::test_fn! {
+//     ac_match, rules(),
+//     runner = Runner::new()
+//         .with_iter_limit(100)
+//         .with_node_limit(500_000)
+//         .with_expr(&"(- (+ (pow a 3) (+ (pow b 3) (pow c 3))) (* 3 (* a (* b c))))".parse().unwrap()),
+//     "(* (+ a (+ b c)) (- (+ (* a a) (+ (* b b) (* c c))) (+ (* a b) (+ (* b c) (* a c)))))"
+//     =>
+//     "(- (+ (pow a 3) (+ (pow b 3) (pow c 3))) (* 3 (* a (* b c))))"
+// }
